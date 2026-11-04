@@ -3,287 +3,407 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Invoice &amp; Payment Autopilot — AP Dashboard</title>
+<title>Invoice Autopilot: AI that processes supplier invoices</title>
+<meta name="description" content="An AI automation that reads supplier invoices, checks them for errors, gets the right manager's approval and plans payments. Built with n8n and Google Gemini.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
-/* ===================== CONFIG NOTE =====================
-   To make this page LIVE, set SHEET_ID in the <script> CONFIG below
-   and share the Google Sheet as "Anyone with the link: Viewer".
-   Without it (or if the fetch is blocked) the page shows a built-in snapshot.
-========================================================= */
 .viz-root{
   color-scheme:light;
   --page:#f3f2ee; --surface-1:#fcfcfb; --surface-2:#f0efec; --border:#e2e0da;
-  --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#7a7873;
-  --accent:#1F3A5F; --accent-ink:#ffffff;
-  --series-1:#2a78d6; --series-1-soft:#cde2fb;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#76746e;
+  --brand:#1F3A5F; --brand-2:#2a5a8f; --brand-ink:#ffffff; --brand-soft:#e8eef6;
+  --series-1:#2a78d6;
   --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b; --neutral:#a8a69f;
   --grid:#e7e5df;
-  --shadow:0 1px 2px rgba(20,20,20,.04),0 4px 16px rgba(20,20,20,.04);
+  --shadow:0 1px 2px rgba(20,20,20,.04),0 6px 20px rgba(20,20,20,.05);
 }
 @media (prefers-color-scheme: dark){
   :root:where(:not([data-theme="light"])) .viz-root{
     color-scheme:dark;
     --page:#121211; --surface-1:#1a1a19; --surface-2:#232321; --border:#2e2e2b;
     --text-primary:#f0efec; --text-secondary:#c3c2b7; --text-muted:#8f8d85;
-    --accent:#9ec5f4; --accent-ink:#0d1b2e;
-    --series-1:#3987e5; --series-1-soft:#1c3556;
-    --neutral:#6d6b65; --grid:#2a2a27;
-    --shadow:none;
+    --brand:#16283f; --brand-2:#1f4570; --brand-ink:#f0efec; --brand-soft:#1c2a3b;
+    --series-1:#3987e5; --neutral:#6d6b65; --grid:#2a2a27; --shadow:none;
   }
 }
 :root[data-theme="dark"] .viz-root{
   color-scheme:dark;
   --page:#121211; --surface-1:#1a1a19; --surface-2:#232321; --border:#2e2e2b;
   --text-primary:#f0efec; --text-secondary:#c3c2b7; --text-muted:#8f8d85;
-  --accent:#9ec5f4; --accent-ink:#0d1b2e;
-  --series-1:#3987e5; --series-1-soft:#1c3556;
-  --neutral:#6d6b65; --grid:#2a2a27; --shadow:none;
+  --brand:#16283f; --brand-2:#1f4570; --brand-ink:#f0efec; --brand-soft:#1c2a3b;
+  --series-1:#3987e5; --neutral:#6d6b65; --grid:#2a2a27; --shadow:none;
 }
 *{box-sizing:border-box}
 html,body{margin:0}
-body{font-family:"IBM Plex Sans",system-ui,sans-serif}
-.viz-root{background:var(--page);color:var(--text-primary);min-height:100vh;padding:28px clamp(16px,3vw,40px) 48px}
+body{font-family:"IBM Plex Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.viz-root{background:var(--page);color:var(--text-primary);min-height:100vh;padding:0 0 56px}
 .num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
-.wrap{max-width:1280px;margin:0 auto}
+.wrap{max-width:1240px;margin:0 auto;padding:0 clamp(16px,3vw,36px)}
+svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 
-/* header */
-header{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;margin-bottom:20px}
-.eyebrow{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted);font-weight:600}
-h1{font-size:clamp(24px,3vw,32px);margin:4px 0 6px;letter-spacing:-.01em}
-.sub{color:var(--text-secondary);font-size:14px;margin:0}
+/* top bar */
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 0}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;color:var(--brand-ink)}
+.logo{width:30px;height:30px;border-radius:8px;background:rgba(255,255,255,.14);display:grid;place-items:center}
 .meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:6px 10px;border-radius:999px;background:var(--surface-1);border:1px solid var(--border);color:var(--text-secondary)}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:var(--brand-ink);font-family:inherit;cursor:default}
+button.badge{cursor:pointer}
 .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
-button.theme{cursor:pointer;font:inherit;font-size:12px;font-weight:600}
 
-/* pipeline strip */
-.pipeline{display:grid;grid-template-columns:repeat(5,1fr);gap:0;background:var(--surface-1);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:18px;box-shadow:var(--shadow)}
-.step{padding:14px 16px;position:relative;border-right:1px solid var(--border)}
-.step:last-child{border-right:none}
-.step .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted);font-weight:600}
-.step .t{font-weight:600;font-size:14px;margin-top:3px}
-.step .d{font-size:12px;color:var(--text-secondary);margin-top:2px}
-.step .n{position:absolute;top:12px;right:14px;font-size:20px;font-weight:600;color:var(--text-primary)}
+/* hero */
+.hero{background:linear-gradient(135deg,var(--brand) 0%,var(--brand-2) 100%);color:var(--brand-ink);padding-bottom:84px}
+.hero-grid{display:grid;grid-template-columns:1.25fr 1fr;gap:36px;align-items:center;padding-top:28px}
+.kicker{font-size:12px;letter-spacing:.14em;text-transform:uppercase;opacity:.75;font-weight:600}
+.hero h1{font-size:clamp(30px,4.2vw,46px);line-height:1.08;margin:10px 0 14px;letter-spacing:-.02em}
+.hero p.lead{font-size:17px;line-height:1.55;opacity:.9;margin:0;max-width:560px}
+.story{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:22px}
+.story .k{font-size:12px;letter-spacing:.1em;text-transform:uppercase;opacity:.75;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.story p{margin:0;font-size:16px;line-height:1.6}
+.story b{font-weight:600;background:rgba(255,255,255,.14);padding:0 5px;border-radius:4px;white-space:nowrap}
 
-/* KPI tiles */
-.kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px}
-.tile{background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow);min-width:0}
-.tile .label{font-size:12px;color:var(--text-secondary);font-weight:500;display:flex;align-items:center;gap:6px}
-.tile .value{font-size:clamp(22px,2.2vw,28px);font-weight:600;margin-top:8px;line-height:1.1;white-space:nowrap}
-.tile .value small{font-size:13px;color:var(--text-muted);font-weight:500;margin-left:3px}
-.tile .foot{font-size:12px;color:var(--text-muted);margin-top:6px}
-.tile.hero{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
-.tile.hero .label,.tile.hero .foot,.tile.hero .value small{color:var(--accent-ink);opacity:.82}
+/* impact cards */
+.impact{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:-60px;position:relative}
+.icard{background:var(--surface-1);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:var(--shadow);min-width:0}
+.icard .top{display:flex;align-items:center;gap:10px;color:var(--text-secondary);font-size:13px;font-weight:600}
+.icard .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--brand-soft);color:var(--series-1)}
+.icard .big{font-size:clamp(26px,2.6vw,34px);font-weight:600;margin:14px 0 4px;line-height:1.05;white-space:nowrap}
+.icard .big small{font-size:14px;color:var(--text-muted);margin-left:4px;font-weight:500}
+.icard .exp{font-size:13px;color:var(--text-secondary);line-height:1.5}
+
+/* section titles */
+.section{margin-top:40px}
+.stitle{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.stitle h2{font-size:22px;margin:0;letter-spacing:-.01em}
+.stitle p{margin:4px 0 0;color:var(--text-secondary);font-size:14px}
+
+/* how it works */
+.flow{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;position:relative}
+.fstep{background:var(--surface-1);border:1px solid var(--border);border-radius:16px;padding:18px;position:relative;box-shadow:var(--shadow)}
+.fstep:not(:last-child)::after{content:"";position:absolute;right:-12px;top:38px;width:12px;height:2px;background:var(--border)}
+.fstep .no{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--text-muted)}
+.fstep .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--brand-soft);color:var(--series-1);margin:10px 0 12px}
+.fstep h3{font-size:15px;margin:0 0 6px}
+.fstep p{font-size:13px;line-height:1.5;color:var(--text-secondary);margin:0}
+.fstep .cnt{margin-top:12px;font-size:12px;color:var(--text-muted);border-top:1px dashed var(--border);padding-top:10px}
+.fstep .cnt b{color:var(--text-primary);font-size:15px}
 
 /* cards */
 .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
-.card{background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:18px 18px 16px;box-shadow:var(--shadow);min-width:0}
-.c4{grid-column:span 4}.c5{grid-column:span 5}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
-.card h2{font-size:15px;margin:0;font-weight:600}
-.card .hint{font-size:12px;color:var(--text-muted);margin:3px 0 14px}
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:var(--shadow);min-width:0;display:flex;flex-direction:column}
+.c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c12{grid-column:span 12}
+.card h3{font-size:16px;margin:0}
+.card .q{font-size:13px;color:var(--text-muted);margin:4px 0 16px}
+.insight{margin-top:auto;padding-top:14px}
+.insight div{display:flex;gap:10px;align-items:flex-start;background:var(--brand-soft);border-radius:10px;padding:11px 13px;font-size:13px;line-height:1.5;color:var(--text-primary)}
+.insight svg{color:var(--series-1);margin-top:1px}
 
-/* horizontal bars */
-.bars{display:flex;flex-direction:column;gap:12px}
-.bar-row{display:grid;grid-template-columns:150px 1fr 120px;gap:12px;align-items:center;cursor:default}
-.bar-row .name{font-size:13px;color:var(--text-secondary);display:flex;align-items:center;gap:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* bars */
+.bars{display:flex;flex-direction:column;gap:14px}
+.bar-row{display:grid;grid-template-columns:160px 1fr 112px;gap:12px;align-items:center}
+.bar-row .name{font-size:13px;color:var(--text-primary);display:flex;align-items:center;gap:8px;min-width:0}
+.bar-row .name span.sub{display:block;font-size:11px;color:var(--text-muted);margin-top:1px}
 .track{height:22px;position:relative;border-left:1px solid var(--grid)}
-.fill{position:absolute;left:0;top:3px;bottom:3px;border-radius:0 4px 4px 0;transition:width .5s ease}
-.bar-row .val{font-size:13px;text-align:right;color:var(--text-primary)}
+.fill{position:absolute;left:0;top:3px;bottom:3px;border-radius:0 4px 4px 0;transition:width .6s ease}
+.bar-row .val{font-size:13px;text-align:right}
 .bar-row .val span{color:var(--text-muted);font-size:12px}
-.bar-row:hover .fill{filter:brightness(1.08)}
-.icon{display:inline-grid;place-items:center;width:18px;height:18px;border-radius:50%;font-size:11px;font-weight:700;color:#fff;flex:none}
-
-/* stacked level bars */
-.stack{display:flex;height:22px;gap:2px;position:relative;margin-top:3px}
-.seg{height:100%;transition:width .5s ease}
-.seg:first-child{border-radius:0}
+.bar-row:hover .fill,.bar-row:hover .seg{filter:brightness(1.08)}
+.icon{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:700;color:#fff;flex:none}
+.stack{display:flex;height:16px;gap:2px;margin-top:3px}
+.seg{height:100%}
 .seg:last-child{border-radius:0 4px 4px 0}
 .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:14px;font-size:12px;color:var(--text-secondary)}
 .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:-1px}
 
-/* attention list */
-.list{display:flex;flex-direction:column;gap:10px}
-.item{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)}
-.item .t{font-weight:600;font-size:13px}
-.item .s{font-size:12px;color:var(--text-secondary);margin-top:2px}
-.item .a{font-size:13px;font-weight:600;white-space:nowrap}
-.empty{font-size:13px;color:var(--text-muted);padding:18px;text-align:center;border:1px dashed var(--border);border-radius:10px}
+/* status meaning */
+.meaning{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;margin-top:16px}
+.meaning div{display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--text-secondary);line-height:1.45}
+.meaning b{color:var(--text-primary);font-weight:600}
 
-/* payment */
-.pay-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px}
-.pay-total{font-size:26px;font-weight:600}
-.pay-date{font-size:13px;color:var(--text-secondary)}
+/* lists */
+.list{display:flex;flex-direction:column;gap:10px}
+.item{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface-2)}
+.item .t{font-weight:600;font-size:14px}
+.item .s{font-size:12px;color:var(--text-secondary);margin-top:2px}
+.item .a{font-size:14px;font-weight:600;white-space:nowrap;text-align:right}
+.item .a small{display:block;font-size:11px;font-weight:500;color:var(--text-muted);font-family:"IBM Plex Sans",sans-serif}
+.empty{font-size:13px;color:var(--text-muted);padding:22px;text-align:center;border:1px dashed var(--border);border-radius:12px}
+.pay-big{font-size:34px;font-weight:600;line-height:1}
+.pay-date{display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--text-secondary);margin:8px 0 16px}
+
+/* rules */
+.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px}
+.rule{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--surface-2)}
+.rule .who{font-weight:600;font-size:14px}
+.rule .when{font-size:12px;color:var(--text-secondary);margin-top:3px}
+
+/* glossary */
+.gloss{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.gl{background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:16px}
+.gl h4{margin:0 0 6px;font-size:14px}
+.gl p{margin:0;font-size:13px;line-height:1.5;color:var(--text-secondary)}
 
 /* table */
+details.reg{background:var(--surface-1);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow)}
+details.reg summary{cursor:pointer;list-style:none;padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;font-weight:600}
+details.reg summary::-webkit-details-marker{display:none}
+details.reg summary .hint{font-weight:400;font-size:13px;color:var(--text-muted)}
+details.reg .chev{transition:transform .2s}
+details.reg[open] .chev{transform:rotate(180deg)}
+.reg-body{padding:0 20px 20px}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
 .chip{font:inherit;font-size:12px;font-weight:600;padding:6px 11px;border-radius:999px;border:1px solid var(--border);background:var(--surface-1);color:var(--text-secondary);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .chip[aria-pressed="true"]{background:var(--text-primary);color:var(--surface-1);border-color:var(--text-primary)}
-.search{margin-left:auto;font:inherit;font-size:13px;padding:7px 11px;border-radius:9px;border:1px solid var(--border);background:var(--surface-1);color:var(--text-primary);min-width:200px}
-.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px}
-table{border-collapse:collapse;width:100%;font-size:13px;min-width:860px}
+.search{margin-left:auto;font:inherit;font-size:13px;padding:7px 11px;border-radius:9px;border:1px solid var(--border);background:var(--surface-1);color:var(--text-primary);min-width:220px}
+.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:880px}
 th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);font-weight:600;padding:10px 12px;background:var(--surface-2);border-bottom:1px solid var(--border);white-space:nowrap}
-td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+td{padding:10px 12px;border-bottom:1px solid var(--border)}
+td.num{white-space:nowrap}
 tr:last-child td{border-bottom:none}
 tbody tr:hover td{background:var(--surface-2)}
 td.r,th.r{text-align:right}
-td.num{white-space:nowrap}
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px 3px 4px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);white-space:nowrap}
 .flags{display:flex;gap:4px}
-.flag{font-size:11px;font-weight:600;padding:2px 6px;border-radius:5px;border:1px solid var(--border);color:var(--text-muted)}
+.flag{font-size:11px;font-weight:600;padding:2px 6px;border-radius:5px;border:1px solid var(--border);color:var(--text-muted);white-space:nowrap}
 .flag.bad{color:var(--text-primary);border-color:var(--critical);background:color-mix(in srgb,var(--critical) 12%,transparent)}
 .flag.ok{color:var(--text-secondary)}
 
-footer{margin-top:22px;font-size:12px;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:6px 18px;justify-content:space-between}
+/* about */
+.about{margin-top:40px;background:var(--surface-1);border:1px solid var(--border);border-radius:16px;padding:22px;display:grid;grid-template-columns:1.4fr 1fr;gap:24px;box-shadow:var(--shadow)}
+.about h3{margin:0 0 8px;font-size:16px}
+.about p{margin:0;font-size:14px;line-height:1.6;color:var(--text-secondary)}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.tag{font-size:12px;font-weight:600;padding:5px 10px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-secondary)}
+.foot{margin-top:18px;font-size:12px;color:var(--text-muted);text-align:center}
 
 /* tooltip */
-#tip{position:fixed;pointer-events:none;z-index:50;background:var(--text-primary);color:var(--surface-1);font-size:12px;padding:8px 10px;border-radius:8px;max-width:260px;line-height:1.45;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
+#tip{position:fixed;pointer-events:none;z-index:50;background:var(--text-primary);color:var(--surface-1);font-size:12px;padding:8px 10px;border-radius:8px;max-width:270px;line-height:1.45;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
 #tip.on{opacity:1;transform:none}
-#tip b{font-weight:600}
 
-@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,1fr)}.c4,.c5,.c7,.c8{grid-column:span 12}}
-@media (max-width:680px){.kpis{grid-template-columns:repeat(2,1fr)}.pipeline{grid-template-columns:1fr}.step{border-right:none;border-bottom:1px solid var(--border)}.bar-row{grid-template-columns:110px 1fr 90px}.search{margin-left:0;width:100%}}
+@media (max-width:1080px){
+  .hero-grid{grid-template-columns:1fr}
+  .impact{grid-template-columns:repeat(2,1fr)}
+  .flow{grid-template-columns:repeat(2,1fr)} .fstep::after{display:none}
+  .c5,.c6,.c7{grid-column:span 12}
+  .gloss{grid-template-columns:repeat(2,1fr)}
+  .about{grid-template-columns:1fr}
+}
+@media (max-width:620px){
+  .impact,.flow,.gloss,.rules{grid-template-columns:1fr}
+  .bar-row{grid-template-columns:118px 1fr 86px}
+  .search{margin-left:0;width:100%}
+}
 </style>
 </head>
 <body>
 <div class="viz-root">
+
+<!-- ======================= HERO ======================= -->
+<section class="hero">
+  <div class="wrap">
+    <div class="topbar">
+      <div class="brand">
+        <span class="logo"><svg class="i" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg></span>
+        Invoice Autopilot
+      </div>
+      <div class="meta">
+        <span class="badge" id="source"><span class="dot" style="background:var(--neutral)"></span>Loading…</span>
+        <button class="badge" id="themeBtn" type="button" aria-label="Switch light or dark mode">◐ Theme</button>
+      </div>
+    </div>
+
+    <div class="hero-grid">
+      <div>
+        <div class="kicker">AI automation · Accounts payable</div>
+        <h1>Supplier invoices, processed without anyone typing.</h1>
+        <p class="lead">A supplier emails a PDF invoice. AI reads it, checks it for mistakes, asks the right manager to approve it with one click, and adds it to the weekly payment plan. This page shows what the system is doing, live.</p>
+      </div>
+      <div class="story" aria-live="polite">
+        <div class="k"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>Right now, in plain words</div>
+        <p id="story">Loading the latest numbers…</p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <div class="wrap">
 
-  <header>
-    <div>
-      <div class="eyebrow">Accounts Payable · AI Automation</div>
-      <h1>Invoice &amp; Payment Autopilot</h1>
-      <p class="sub">Supplier invoices read by Gemini, checked for VAT, duplicates, ZATCA QR and PO, approved by amount level, scheduled for payment. Built with n8n.</p>
-    </div>
-    <div class="meta">
-      <span class="badge" id="source"><span class="dot" style="background:var(--neutral)"></span>Loading…</span>
-      <span class="badge num" id="updated">—</span>
-      <button class="badge theme" id="themeBtn" type="button" aria-label="Toggle dark mode">◐ Theme</button>
-    </div>
-  </header>
+  <!-- ======================= IMPACT ======================= -->
+  <section class="impact" id="impact" aria-label="Key results"></section>
 
-  <section class="pipeline" aria-label="Automation pipeline">
-    <div class="step"><div class="k">1 · Capture</div><div class="t">Gmail trigger</div><div class="d">PDF invoice arrives</div><div class="n num" id="p1">–</div></div>
-    <div class="step"><div class="k">2 · Read</div><div class="t">Gemini AI</div><div class="d">Extracts 10 fields</div><div class="n num" id="p2">–</div></div>
-    <div class="step"><div class="k">3 · Check</div><div class="t">4 auto-checks</div><div class="d">VAT · Duplicate · QR · PO</div><div class="n num" id="p3">–</div></div>
-    <div class="step"><div class="k">4 · Approve</div><div class="t">Email buttons</div><div class="d">Supervisor · FM · CFO</div><div class="n num" id="p4">–</div></div>
-    <div class="step"><div class="k">5 · Pay</div><div class="t">Weekly plan</div><div class="d">Supplier + finance emails</div><div class="n num" id="p5">–</div></div>
+  <!-- ======================= HOW IT WORKS ======================= -->
+  <section class="section">
+    <div class="stitle"><div><h2>How it works</h2><p>Five steps. The only thing a person does is click Approve or Reject.</p></div></div>
+    <div class="flow">
+      <div class="fstep"><div class="no">STEP 1</div>
+        <div class="ic"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div>
+        <h3>Invoice arrives</h3><p>A supplier emails a PDF invoice. The system checks the inbox every minute.</p>
+        <div class="cnt"><b class="num" id="f1">–</b> invoices received</div></div>
+      <div class="fstep"><div class="no">STEP 2</div>
+        <div class="ic"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></div>
+        <h3>AI reads it</h3><p>Google Gemini pulls out supplier, amounts, VAT, PO number and date. No typing.</p>
+        <div class="cnt"><b class="num" id="f2">–</b> read by AI</div></div>
+      <div class="fstep"><div class="no">STEP 3</div>
+        <div class="ic"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg></div>
+        <h3>Robot checks it</h3><p>4 rules: is VAT 15%? Already received? Has a ZATCA QR code? Has a PO number?</p>
+        <div class="cnt"><b class="num" id="f3">–</b> checked · <b class="num" id="f3b">–</b> stopped</div></div>
+      <div class="fstep"><div class="no">STEP 4</div>
+        <div class="ic"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+        <h3>Manager approves</h3><p>Clean invoices go to the right manager by amount, who clicks Approve or Reject in an email.</p>
+        <div class="cnt"><b class="num" id="f4">–</b> decided · <b class="num" id="f4b">–</b> waiting</div></div>
+      <div class="fstep"><div class="no">STEP 5</div>
+        <div class="ic"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/></svg></div>
+        <h3>Payment planned</h3><p>Every Sunday, approved invoices are scheduled for Thursday and suppliers are told by email.</p>
+        <div class="cnt"><b class="num" id="f5">–</b> scheduled to pay</div></div>
+    </div>
   </section>
 
-  <section class="kpis" id="kpis" aria-label="Key figures"></section>
-
-  <section class="grid">
-    <div class="card c7">
-      <h2>Invoice value by status</h2>
-      <p class="hint">SAR incl. VAT · count in brackets</p>
-      <div class="bars" id="statusBars"></div>
-    </div>
-    <div class="card c5">
-      <h2>Issues caught by AI checks</h2>
-      <p class="hint">Invoices stopped before reaching a manager</p>
-      <div class="bars" id="checkBars"></div>
-    </div>
-
-    <div class="card c7">
-      <h2>Approvals by authority level</h2>
-      <p class="hint">≤ 5,000 Supervisor · ≤ 20,000 Finance Manager · above CFO</p>
-      <div class="bars" id="levelBars"></div>
-      <div class="legend" id="levelLegend"></div>
-    </div>
-    <div class="card c5">
-      <h2>Next payment run</h2>
-      <p class="hint">Approved invoices scheduled by the weekly plan</p>
-      <div id="payment"></div>
-    </div>
-
-    <div class="card c12">
-      <h2>Needs attention</h2>
-      <p class="hint">On hold — the reason comes straight from the check results</p>
-      <div class="list" id="attention"></div>
-    </div>
-
-    <div class="card c12">
-      <h2>Invoice register</h2>
-      <p class="hint">Live view of the Google Sheet the automation writes to</p>
-      <div class="toolbar" id="chips"></div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr>
-            <th>Invoice</th><th>Supplier</th><th>PO</th><th class="r">Net</th><th class="r">VAT</th><th class="r">Total (SAR)</th>
-            <th>Checks</th><th>Status</th><th>Approver</th><th>Payment</th>
-          </tr></thead>
-          <tbody id="rows"></tbody>
-        </table>
+  <!-- ======================= MONEY + PROBLEMS ======================= -->
+  <section class="section">
+    <div class="stitle"><div><h2>Where the money is</h2><p>Every riyal received, and what the system did with it.</p></div></div>
+    <div class="grid">
+      <div class="card c7">
+        <h3>Invoice value by status</h3>
+        <p class="q">How much money sits in each stage (SAR, VAT included)</p>
+        <div class="bars" id="statusBars"></div>
+        <div class="meaning" id="meaning"></div>
+        <div class="insight" id="insStatus"></div>
+      </div>
+      <div class="card c5">
+        <h3>Problems the AI caught</h3>
+        <p class="q">Invoices stopped <i>before</i> a manager saw them or money was paid</p>
+        <div class="bars" id="checkBars"></div>
+        <div class="insight" id="insChecks"></div>
       </div>
     </div>
   </section>
 
-  <footer>
-    <span>Demo data only · fictional suppliers · no real company data</span>
-    <span>Stack: n8n · Google Gemini · Gmail API · Google Sheets API · Webhooks</span>
-  </footer>
-<div id="tip" role="tooltip"></div>
+  <!-- ======================= APPROVALS + PAYMENT ======================= -->
+  <section class="section">
+    <div class="stitle"><div><h2>Approvals and payments</h2><p>Bigger invoices need a more senior approver, as in a real finance team.</p></div></div>
+    <div class="grid">
+      <div class="card c7">
+        <h3>Who approves what</h3>
+        <p class="q">The amount decides the approver automatically</p>
+        <div class="rules">
+          <div class="rule"><div class="who">Supervisor</div><div class="when">up to 5,000 SAR</div></div>
+          <div class="rule"><div class="who">Finance Manager</div><div class="when">5,001 – 20,000 SAR</div></div>
+          <div class="rule"><div class="who">CFO</div><div class="when">above 20,000 SAR</div></div>
+        </div>
+        <div class="bars" id="levelBars"></div>
+        <div class="legend" id="levelLegend"></div>
+        <div class="insight" id="insLevels"></div>
+      </div>
+      <div class="card c5">
+        <h3>Next payment run</h3>
+        <p class="q">Approved invoices the system has scheduled</p>
+        <div id="payment"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= NEEDS ATTENTION ======================= -->
+  <section class="section">
+    <div class="stitle"><div><h2>Needs a person</h2><p>Invoices the robot stopped, with the exact reason, so nobody has to dig.</p></div></div>
+    <div class="list" id="attention"></div>
+  </section>
+
+  <!-- ======================= GLOSSARY ======================= -->
+  <section class="section">
+    <div class="stitle"><div><h2>Words on this page</h2><p>Quick meanings for non-finance readers.</p></div></div>
+    <div class="gloss">
+      <div class="gl"><h4>VAT (15%)</h4><p>Tax added to the price in Saudi Arabia. A 1,000 SAR service should show 150 SAR VAT. A wrong figure means a wrong invoice.</p></div>
+      <div class="gl"><h4>ZATCA QR code</h4><p>The QR code the Saudi tax authority requires on e-invoices. No QR usually means the invoice isn't valid for tax.</p></div>
+      <div class="gl"><h4>PO number</h4><p>Purchase Order: the company's approval to buy, issued before the invoice. No PO means nobody ordered it officially.</p></div>
+      <div class="gl"><h4>Duplicate</h4><p>The same invoice sent twice. Paying it again is one of the most common ways companies lose money.</p></div>
+      <div class="gl"><h4>On hold</h4><p>Stopped by the checks. It won't reach a manager or get paid until someone fixes it.</p></div>
+    </div>
+  </section>
+
+  <!-- ======================= REGISTER ======================= -->
+  <section class="section">
+    <details class="reg" id="reg">
+      <summary><span>See every invoice <span class="hint">· the full register the automation writes to</span></span>
+        <svg class="i chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></summary>
+      <div class="reg-body">
+        <div class="toolbar" id="chips"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Invoice</th><th>Supplier</th><th>PO</th><th class="r">Net</th><th class="r">VAT</th><th class="r">Total (SAR)</th>
+              <th>Checks</th><th>Status</th><th>Approver</th><th>Payment</th>
+            </tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <!-- ======================= ABOUT ======================= -->
+  <section class="about">
+    <div>
+      <h3>About this project</h3>
+      <p>Built by <b style="color:var(--text-primary)">Shahwaiz Sulehri</b>, a finance executive in Riyadh, to show how AI automation can take routine accounts payable work off a finance team: reading invoices, catching errors, routing approvals and planning payments. The whole pipeline runs on 4 connected n8n workflows. All suppliers and amounts are fictional demo data.</p>
+    </div>
+    <div>
+      <h3>Built with</h3>
+      <div class="tags">
+        <span class="tag">n8n</span><span class="tag">Google Gemini AI</span><span class="tag">Gmail API</span>
+        <span class="tag">Google Sheets API</span><span class="tag">Webhooks</span><span class="tag">JavaScript</span><span class="tag">GitHub Pages</span>
+      </div>
+    </div>
+  </section>
+  <div class="foot" id="updated">Demo data only · no real company data</div>
+
 </div>
+<div id="tip" role="tooltip"></div>
 </div>
 
 <script>
 /* ============================ CONFIG ============================ */
 const CONFIG = {
-  SHEET_ID: '1WMDs_GQbRf3iICuQ-10-YTRzLNMoEJs9TCl2R4vME6Y',          // paste your Google Sheet ID here to make the page live
-  SHEET_NAME: 'Sheet1'
+  SHEET_ID: '1WMDs_GQbRf3iICuQ-10-YTRzLNMoEJs9TCl2R4vME6Y',  // Google Sheet ("Anyone with the link: Viewer")
+  SHEET_NAME: 'Sheet1',
+  MANUAL_MINUTES_PER_INVOICE: 10   // assumption used for the "time saved" estimate
 };
 
-/* Snapshot of the demo Invoice Register (used when not live) */
+/* Snapshot used if the live sheet can't be reached */
 const SNAPSHOT = [
- {invoice_no:'INV-002', supplier:'Gulf Paper Co', amount:2300, net_amount:2000, vat:300, status:'Rejected', approver:'Supervisor', decision_date:'2026-11-03 17:20'},
- {invoice_no:'INV-1001', supplier:'Al Noor Office Supplies', amount:4600, net_amount:4000, vat:600, status:'Received'},
- {invoice_no:'INV-2047', supplier:'Riyadh Fast Logistics', amount:14375, net_amount:12500, vat:1875, status:'Received'},
- {invoice_no:'INV-2047', supplier:'Riyadh Fast Logistics', amount:14375, net_amount:12500, vat:1875, status:'Received'},
  {invoice_no:'INV-3310', supplier:'Desert Tech Solutions', amount:9000, net_amount:8000, vat:1000, status:'On Hold', po_number:'PO-5003', vat_check:'FAIL', duplicate_check:'OK', qr_check:'OK', po_check:'OK', check_result:'VAT should be 1200'},
  {invoice_no:'INV-4502', supplier:'Gulf Print House', amount:2012.5, net_amount:1750, vat:262.5, status:'On Hold', po_number:'', vat_check:'OK', duplicate_check:'OK', qr_check:'MISSING', po_check:'MISSING', check_result:'No ZATCA QR code; No PO number'},
  {invoice_no:'INV-1001', supplier:'Al Noor Office Supplies', amount:4600, net_amount:4000, vat:600, status:'On Hold', po_number:'PO-5001', vat_check:'OK', duplicate_check:'DUPLICATE', qr_check:'OK', po_check:'OK', check_result:'Duplicate invoice'},
- {invoice_no:'INV-6120', supplier:'Sahara Water Supply', amount:3450, net_amount:3000, vat:450, status:'Approved', po_number:'PO-5006', vat_check:'OK', duplicate_check:'OK', qr_check:'OK', po_check:'OK', check_result:'All checks passed', approver:'Supervisor', decision_date:'2026-11-04 15:24', received_date:'2026-11-01 9:00', payment_status:'Scheduled', scheduled_pay_date:'2026-11-05'},
- {invoice_no:'INV-7788', supplier:'Najd Fleet Maintenance', amount:29900, net_amount:26000, vat:3900, status:'Rejected', po_number:'PO-5007', vat_check:'OK', duplicate_check:'OK', qr_check:'OK', po_check:'OK', check_result:'All checks passed', approver:'CFO', decision_date:'2026-11-04 14:20'},
+ {invoice_no:'INV-6120', supplier:'Sahara Water Supply', amount:3450, net_amount:3000, vat:450, status:'Approved', po_number:'PO-5006', vat_check:'OK', duplicate_check:'OK', qr_check:'OK', po_check:'OK', check_result:'All checks passed', approver:'Supervisor', payment_status:'Scheduled', scheduled_pay_date:'2026-11-05'},
+ {invoice_no:'INV-7788', supplier:'Najd Fleet Maintenance', amount:29900, net_amount:26000, vat:3900, status:'Rejected', po_number:'PO-5007', vat_check:'OK', duplicate_check:'OK', qr_check:'OK', po_check:'OK', check_result:'All checks passed', approver:'CFO'},
  {invoice_no:'INV-3310', supplier:'Desert Tech Solutions', amount:9000, net_amount:8000, vat:1000, status:'On Hold', po_number:'PO-5003', vat_check:'FAIL', duplicate_check:'DUPLICATE', qr_check:'OK', po_check:'OK', check_result:'VAT should be 1200; Duplicate invoice'}
 ];
-const SNAPSHOT_DATE = '4 Nov 2026';
 
 /* ============================ HELPERS ============================ */
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num = v => { const n = parseFloat(String(v ?? '').replace(/,/g,'')); return isFinite(n) ? n : 0; };
 const sar = v => num(v).toLocaleString('en-US',{maximumFractionDigits:2});
-const sarShort = v => { v = num(v); return v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e4 ? (v/1e3).toFixed(1)+'K' : v.toLocaleString('en-US',{maximumFractionDigits:0}); };
+const sar0 = v => Math.round(num(v)).toLocaleString('en-US');
+const short = v => { v = num(v); return v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e4 ? (v/1e3).toFixed(1)+'K' : Math.round(v).toLocaleString('en-US'); };
 const up = s => String(s ?? '').trim().toUpperCase();
+const plural = (n, w, ws) => `${n} ${n === 1 ? w : (ws || w + 's')}`;
+const ICON_BULB = '<svg class="i" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>';
+const insight = html => `<div>${ICON_BULB}<span>${html}</span></div>`;
 
 const STATUS = {
-  'Approved':         {color:'var(--good)',     icon:'✓', order:1},
-  'Pending Approval': {color:'var(--warning)',  icon:'…', order:2},
-  'On Hold':          {color:'var(--serious)',  icon:'!', order:3},
-  'Rejected':         {color:'var(--critical)', icon:'✕', order:4},
-  'Received':         {color:'var(--neutral)',  icon:'•', order:5}
+  'Approved':         {color:'var(--good)',     icon:'✓', order:1, label:'Approved',          means:'a manager said yes; it will be paid'},
+  'Pending Approval': {color:'var(--warning)',  icon:'…', order:2, label:'Waiting for manager', means:'passed all checks, approval email sent'},
+  'On Hold':          {color:'var(--serious)',  icon:'!', order:3, label:'On hold',           means:'stopped by the checks, needs fixing'},
+  'Rejected':         {color:'var(--critical)', icon:'✕', order:4, label:'Rejected',          means:'a manager said no; it won\'t be paid'},
+  'Received':         {color:'var(--neutral)',  icon:'•', order:5, label:'Logged (test)',     means:'early test row, before the checks existed'}
 };
-const statusInfo = s => STATUS[s] || {color:'var(--neutral)', icon:'•', order:9};
-const icon = s => { const i = statusInfo(s); return `<span class="icon" style="background:${i.color}" aria-hidden="true">${i.icon}</span>`; };
+const sInfo = s => STATUS[s] || {color:'var(--neutral)', icon:'•', order:9, label:s || 'Unknown', means:''};
+const icon = s => { const i = sInfo(s); return `<span class="icon" style="background:${i.color}" aria-hidden="true">${i.icon}</span>`; };
 const level = a => num(a) <= 5000 ? 'Supervisor' : num(a) <= 20000 ? 'Finance Manager' : 'CFO';
+const niceDate = d => { if (!d) return ''; const x = new Date(d + 'T00:00:00'); return isNaN(x) ? d : x.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'}); };
 
-function parseCSV(text){
-  const rows=[]; let row=[], f='', q=false;
-  for (let i=0;i<text.length;i++){
-    const c=text[i];
-    if (q){ if (c=='"'){ if (text[i+1]=='"'){f+='"';i++;} else q=false; } else f+=c; }
-    else if (c=='"') q=true;
-    else if (c==','){ row.push(f); f=''; }
-    else if (c=='\n'){ row.push(f); rows.push(row); row=[]; f=''; }
-    else if (c!='\r') f+=c;
-  }
-  if (f!=='' || row.length){ row.push(f); rows.push(row); }
-  const head = rows.shift().map(h => h.trim());
-  return rows.filter(r => r.some(x => x.trim())).map(r => Object.fromEntries(head.map((h,i)=>[h, (r[i]??'').trim()])));
-}
-
-/* Reads the sheet with Google's JSONP endpoint (script tag) — works from any site, even file:// */
+/* ============================ DATA ============================ */
 function loadSheetJSONP(){
   return new Promise((resolve, reject) => {
     const cb = 'gviz_cb_' + Date.now();
@@ -295,17 +415,15 @@ function loadSheetJSONP(){
       try{
         if (resp.status === 'error') throw new Error(JSON.stringify(resp.errors));
         const cols = resp.table.cols.map(c => (c.label || '').trim());
-        const rows = resp.table.rows.map(r => {
+        resolve(resp.table.rows.map(r => {
           const o = {};
           cols.forEach((h, i) => {
-            const cell = r.c[i];
             if (!h) return;
-            if (!cell || cell.v === null || cell.v === undefined) { o[h] = ''; return; }
-            o[h] = typeof cell.v === 'number' ? cell.v : (cell.f ?? String(cell.v));
+            const cell = r.c[i];
+            o[h] = (!cell || cell.v == null) ? '' : (typeof cell.v === 'number' ? cell.v : (cell.f ?? String(cell.v)));
           });
           return o;
-        });
-        resolve(rows);
+        }));
       }catch(e){ reject(e); }
     };
     s.src = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?headers=1&sheet=${encodeURIComponent(CONFIG.SHEET_NAME)}&tqx=responseHandler:${cb}&t=${Date.now()}`;
@@ -313,16 +431,10 @@ function loadSheetJSONP(){
     document.head.appendChild(s);
   });
 }
-
 async function loadData(){
   if (!CONFIG.SHEET_ID) return {rows:SNAPSHOT, live:false};
-  try{
-    const rows = (await loadSheetJSONP()).filter(r => String(r.invoice_no || '').trim());
-    return {rows, live:true};
-  }catch(e){
-    console.warn('Live load failed, showing snapshot', e);
-    return {rows:SNAPSHOT, live:false, failed:true};
-  }
+  try{ return {rows:(await loadSheetJSONP()).filter(r => String(r.invoice_no||'').trim()), live:true}; }
+  catch(e){ console.warn('Live load failed, showing snapshot', e); return {rows:SNAPSHOT, live:false, failed:true}; }
 }
 
 /* ============================ RENDER ============================ */
@@ -330,100 +442,124 @@ let ALL = [], FILTER = 'All', QUERY = '';
 
 function render(rows){
   ALL = rows.map(r => ({...r, amount:num(r.amount), net_amount:num(r.net_amount), vat:num(r.vat)}));
-  const checked = ALL.filter(r => r.vat_check);
+  const sum = a => a.reduce((t,r) => t + r.amount, 0);
   const by = s => ALL.filter(r => r.status === s);
-  const sum = a => a.reduce((t,r)=>t+r.amount,0);
+  const checked = ALL.filter(r => r.vat_check);
   const pending = by('Pending Approval'), hold = by('On Hold'), approved = by('Approved'), rejected = by('Rejected');
   const scheduled = ALL.filter(r => up(r.payment_status) === 'SCHEDULED');
-  const decided = approved.length + rejected.length;
-  const issues = checked.filter(r => up(r.check_result) && up(r.check_result) !== 'ALL CHECKS PASSED');
+  const total = sum(ALL);
+  const minutes = ALL.length * CONFIG.MANUAL_MINUTES_PER_INVOICE;
+  const payDates = [...new Set(scheduled.map(r => r.scheduled_pay_date))].filter(Boolean).sort();
+  const nextPay = payDates[0];
 
-  /* pipeline counts */
-  $('p1').textContent = ALL.length;
-  $('p2').textContent = ALL.length;
-  $('p3').textContent = checked.length;
-  $('p4').textContent = decided;
-  $('p5').textContent = scheduled.length;
+  /* --- the plain-English story --- */
+  const parts = [];
+  parts.push(`The system has received <b>${plural(ALL.length,'invoice')}</b> worth <b>${sar0(total)} SAR</b>.`);
+  if (hold.length) parts.push(`It stopped <b>${plural(hold.length,'invoice')}</b> with mistakes worth <b>${sar0(sum(hold))} SAR</b> before anyone paid them.`);
+  if (pending.length) parts.push(`<b>${pending.length}</b> ${pending.length===1?'is':'are'} waiting for a manager's click.`);
+  if (scheduled.length) parts.push(`<b>${sar0(sum(scheduled))} SAR</b> is approved and will be paid on <b>${esc(niceDate(nextPay))}</b>.`);
+  else if (approved.length) parts.push(`<b>${approved.length}</b> approved and ready for the next payment run.`);
+  $('story').innerHTML = parts.join(' ');
 
-  /* KPIs */
-  const kpi = (label, value, foot, cls='', unit='') =>
-    `<div class="tile ${cls}"><div class="label">${label}</div><div class="value num">${value}${unit?`<small>${unit}</small>`:''}</div><div class="foot">${foot}</div></div>`;
-  $('kpis').innerHTML =
-    kpi('Total invoice value', sarShort(sum(ALL)), `${ALL.length} invoices captured`, 'hero', 'SAR') +
-    kpi(`${icon('Pending Approval')} Awaiting approval`, pending.length, `${sar(sum(pending))} SAR with managers`) +
-    kpi(`${icon('On Hold')} On hold`, hold.length, `${sar(sum(hold))} SAR blocked by checks`) +
-    kpi(`${icon('Approved')} Approved`, approved.length, `${sar(sum(approved))} SAR cleared`) +
-    kpi('Exception rate', checked.length ? Math.round(issues.length/checked.length*100) : 0, `${issues.length} of ${checked.length} checked invoices`, '', '%') +
-    kpi('Scheduled to pay', sarShort(sum(scheduled)), `${scheduled.length} invoice${scheduled.length===1?'':'s'} in next run`, '', 'SAR');
+  /* --- impact cards --- */
+  const ic = (svg, label, big, unit, exp) => `<div class="icard"><div class="top"><span class="ic">${svg}</span>${label}</div>
+    <div class="big num">${big}${unit ? `<small>${unit}</small>` : ''}</div><div class="exp">${exp}</div></div>`;
+  $('impact').innerHTML =
+    ic('<svg class="i" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 9h6M9 13h6M9 17h3"/></svg>',
+       'Invoices handled', ALL.length, '', `Worth ${sar0(total)} SAR, read by AI with zero manual typing.`) +
+    ic('<svg class="i" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"/><path d="M9 12h6"/></svg>',
+       'Money protected', short(sum(hold)), 'SAR', `${plural(hold.length,'wrong or duplicate invoice')} stopped before payment.`) +
+    ic('<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+       'Time saved (est.)', minutes >= 60 ? (minutes/60).toFixed(1) : minutes, minutes >= 60 ? 'hours' : 'min',
+       `Based on ~${CONFIG.MANUAL_MINUTES_PER_INVOICE} min of manual work per invoice: typing, checking, chasing approval.`) +
+    ic('<svg class="i" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/></svg>',
+       'Ready to pay', short(sum(scheduled)), 'SAR', scheduled.length ? `${plural(scheduled.length,'invoice')}, payment on ${esc(niceDate(nextPay))}.` : 'Nothing scheduled yet.');
 
-  /* status bars */
-  const statuses = [...new Set(ALL.map(r=>r.status).filter(Boolean))].sort((a,b)=>statusInfo(a).order-statusInfo(b).order);
+  /* --- flow counts --- */
+  $('f1').textContent = ALL.length; $('f2').textContent = ALL.length;
+  $('f3').textContent = checked.length; $('f3b').textContent = hold.length;
+  $('f4').textContent = approved.length + rejected.length; $('f4b').textContent = pending.length;
+  $('f5').textContent = scheduled.length;
+
+  /* --- status bars --- */
+  const statuses = [...new Set(ALL.map(r => r.status).filter(Boolean))].sort((a,b) => sInfo(a).order - sInfo(b).order);
   const sMax = Math.max(1, ...statuses.map(s => sum(by(s))));
   $('statusBars').innerHTML = statuses.map(s => {
-    const v = sum(by(s)), n = by(s).length;
-    return `<div class="bar-row" data-tip="<b>${esc(s)}</b><br>${n} invoice${n===1?'':'s'} · ${sar(v)} SAR<br>${Math.round(v/Math.max(1,sum(ALL))*100)}% of total value">
-      <div class="name">${icon(s)}${esc(s)}</div>
-      <div class="track"><div class="fill" style="width:${v/sMax*100}%;background:${statusInfo(s).color}"></div></div>
-      <div class="val num">${sar(v)} <span>(${n})</span></div></div>`;
+    const v = sum(by(s)), n = by(s).length, pct = Math.round(v / Math.max(1,total) * 100);
+    return `<div class="bar-row" data-tip="<b>${esc(sInfo(s).label)}</b><br>${plural(n,'invoice')} · ${sar(v)} SAR<br>${pct}% of all money received">
+      <div class="name">${icon(s)}<span>${esc(sInfo(s).label)}</span></div>
+      <div class="track"><div class="fill" style="width:${v/sMax*100}%;background:${sInfo(s).color}"></div></div>
+      <div class="val num">${short(v)} <span>· ${pct}%</span></div></div>`;
   }).join('') || '<div class="empty">No invoices yet</div>';
+  $('meaning').innerHTML = statuses.filter(s => sInfo(s).means).map(s =>
+    `<div>${icon(s)}<span><b>${esc(sInfo(s).label)}:</b> ${sInfo(s).means}</span></div>`).join('');
+  const topS = statuses.slice().sort((a,b) => sum(by(b)) - sum(by(a)))[0];
+  $('insStatus').innerHTML = topS ? insight(`The biggest share of money, <b>${Math.round(sum(by(topS))/Math.max(1,total)*100)}%</b>, is <b>${esc(sInfo(topS).label.toLowerCase())}</b>. ${
+    hold.length ? `<b>${sar0(sum(hold))} SAR</b> is on hold because of mistakes the checks found.` : 'Nothing is on hold.'}`) : '';
 
-  /* check bars — one hue (magnitude) */
+  /* --- checks --- */
   const checks = [
-    ['VAT mismatch', r => up(r.vat_check)==='FAIL', 'VAT is not 15% of the net amount'],
-    ['Duplicate invoice', r => up(r.duplicate_check)==='DUPLICATE', 'Same invoice number from the same supplier'],
-    ['Missing ZATCA QR', r => up(r.qr_check)==='MISSING', 'No e-invoice QR code on the PDF'],
-    ['Missing PO number', r => up(r.po_check)==='MISSING', 'No purchase order to match against']
+    ['Wrong VAT amount', 'VAT ≠ 15% of the price', r => up(r.vat_check)==='FAIL'],
+    ['Sent twice (duplicate)', 'same invoice already received', r => up(r.duplicate_check)==='DUPLICATE'],
+    ['No ZATCA QR code', 'not a valid Saudi e-invoice', r => up(r.qr_check)==='MISSING'],
+    ['No PO number', 'nobody officially ordered it', r => up(r.po_check)==='MISSING']
   ];
-  const cMax = Math.max(1, ...checks.map(([,f]) => ALL.filter(f).length));
-  $('checkBars').innerHTML = checks.map(([name,f,why]) => {
-    const hits = ALL.filter(f);
-    return `<div class="bar-row" data-tip="<b>${name}</b><br>${why}<br>${hits.length ? 'Caught: '+hits.map(h=>esc(h.invoice_no)).join(', ') : 'None caught'}">
-      <div class="name">${name}</div>
-      <div class="track"><div class="fill" style="width:${hits.length/cMax*100}%;background:var(--series-1)"></div></div>
+  const cMax = Math.max(1, ...checks.map(c => ALL.filter(c[2]).length));
+  $('checkBars').innerHTML = checks.map(([name, sub, f]) => {
+    const hits = ALL.filter(f), v = sum(hits);
+    return `<div class="bar-row" data-tip="<b>${name}</b><br>${sub}<br>${hits.length ? 'Caught: ' + hits.map(h => esc(h.invoice_no)).join(', ') + '<br>Value: ' + sar(v) + ' SAR' : 'None caught so far'}">
+      <div class="name"><span>${name}<span class="sub">${sub}</span></span></div>
+      <div class="track">${hits.length ? `<div class="fill" style="width:${hits.length/cMax*100}%;background:var(--series-1)"></div>` : ''}</div>
       <div class="val num">${hits.length} <span>${hits.length===1?'invoice':'invoices'}</span></div></div>`;
   }).join('');
+  const caught = checks.reduce((t,c) => t + ALL.filter(c[2]).length, 0);
+  $('insChecks').innerHTML = insight(caught
+    ? `The checks found <b>${plural(caught,'problem')}</b> across ${plural(hold.length,'invoice')}. Without them, <b>${sar0(sum(hold))} SAR</b> could have been paid wrongly or twice.`
+    : 'No problems found. Every invoice so far passed all 4 checks.');
 
-  /* level stacked bars */
+  /* --- approval levels --- */
   const lvStatuses = ['Approved','Pending Approval','Rejected'];
-  const routed = ALL.filter(r => lvStatuses.includes(r.status));
   const levels = ['Supervisor','Finance Manager','CFO'];
-  const lvOf = r => r.approver && levels.includes(r.approver) ? r.approver : level(r.amount);
-  const lvMax = Math.max(1, ...levels.map(l => routed.filter(r=>lvOf(r)===l).length));
+  const routed = ALL.filter(r => lvStatuses.includes(r.status));
+  const lvOf = r => levels.includes(r.approver) ? r.approver : level(r.amount);
+  const lvMax = Math.max(1, ...levels.map(l => routed.filter(r => lvOf(r) === l).length));
   $('levelBars').innerHTML = levels.map(l => {
-    const inL = routed.filter(r => lvOf(r)===l);
-    const segs = lvStatuses.map(s => {
-      const n = inL.filter(r=>r.status===s).length;
-      return n ? `<div class="seg" style="width:${n/lvMax*100}%;background:${statusInfo(s).color}"></div>` : '';
-    }).join('');
-    const parts = lvStatuses.map(s => `${s}: ${inL.filter(r=>r.status===s).length}`).join('<br>');
-    return `<div class="bar-row" data-tip="<b>${l}</b> · ${sar(sum(inL))} SAR<br>${parts}">
-      <div class="name">${l}</div>
-      <div class="track" style="border-left:1px solid var(--grid)"><div class="stack">${segs}</div></div>
-      <div class="val num">${inL.length} <span>· ${sarShort(sum(inL))}</span></div></div>`;
+    const inL = routed.filter(r => lvOf(r) === l);
+    const segs = lvStatuses.map(s => { const n = inL.filter(r => r.status === s).length;
+      return n ? `<div class="seg" style="width:${n/lvMax*100}%;background:${sInfo(s).color}"></div>` : ''; }).join('');
+    return `<div class="bar-row" data-tip="<b>${l}</b> · ${sar(sum(inL))} SAR<br>${lvStatuses.map(s => `${sInfo(s).label}: ${inL.filter(r=>r.status===s).length}`).join('<br>')}">
+      <div class="name">${l}</div><div class="track"><div class="stack">${segs}</div></div>
+      <div class="val num">${inL.length} <span>· ${short(sum(inL))}</span></div></div>`;
   }).join('');
-  $('levelLegend').innerHTML = lvStatuses.map(s => `<span><i style="background:${statusInfo(s).color}"></i>${s}</span>`).join('');
+  $('levelLegend').innerHTML = lvStatuses.map(s => `<span><i style="background:${sInfo(s).color}"></i>${sInfo(s).label}</span>`).join('');
+  const decided = approved.length + rejected.length;
+  $('insLevels').innerHTML = insight(routed.length
+    ? `${plural(routed.length,'clean invoice')} went to a manager. <b>${decided}</b> ${decided===1?'has':'have'} been decided by email click${pending.length ? `, <b>${pending.length}</b> still waiting (a reminder is sent daily after 2 days)` : ''}.`
+    : 'No invoice has reached a manager yet.');
 
-  /* payment */
+  /* --- payment --- */
   if (scheduled.length){
-    const dates = [...new Set(scheduled.map(r=>r.scheduled_pay_date))].sort();
-    const next = dates[0], inNext = scheduled.filter(r=>r.scheduled_pay_date===next);
-    const nice = new Date(next+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'short',year:'numeric'});
-    $('payment').innerHTML = `<div class="pay-head"><div class="pay-total num">${sar(sum(inNext))} <small style="font-size:13px;color:var(--text-muted)">SAR</small></div><div class="pay-date">${esc(nice)}</div></div>
-      <div class="list">${inNext.map(r=>`<div class="item"><div>${icon('Approved')}</div><div><div class="t">${esc(r.supplier)}</div><div class="s">${esc(r.invoice_no)} · ${esc(r.po_number||'no PO')} · approved by ${esc(r.approver||'—')}</div></div><div class="a num">${sar(r.amount)}</div></div>`).join('')}</div>`;
+    const inNext = scheduled.filter(r => r.scheduled_pay_date === nextPay);
+    $('payment').innerHTML = `<div class="pay-big num">${sar(sum(inNext))} <small style="font-size:14px;color:var(--text-muted)">SAR</small></div>
+      <div class="pay-date"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>To be paid on ${esc(niceDate(nextPay))}</div>
+      <div class="list">${inNext.map(r => `<div class="item"><div>${icon('Approved')}</div>
+        <div><div class="t">${esc(r.supplier)}</div><div class="s">${esc(r.invoice_no)} · approved by ${esc(r.approver||'manager')} · supplier notified</div></div>
+        <div class="a num">${sar(r.amount)}<small>SAR</small></div></div>`).join('')}</div>
+      <div class="insight">${insight('Finance gets one summary email every Sunday. Each supplier gets a "payment scheduled" email automatically.')}</div>`;
   } else {
-    $('payment').innerHTML = '<div class="empty">No approved invoices waiting for payment</div>';
+    $('payment').innerHTML = '<div class="empty">No approved invoices waiting for payment yet</div>';
   }
 
-  /* attention */
+  /* --- needs a person --- */
   $('attention').innerHTML = hold.length ? hold.map(r => `<div class="item">
       <div>${icon('On Hold')}</div>
-      <div><div class="t">${esc(r.invoice_no)} · ${esc(r.supplier)}</div><div class="s">${esc(r.check_result || 'Check failed')}</div></div>
-      <div class="a num">${sar(r.amount)} SAR</div></div>`).join('')
-    : '<div class="empty">Nothing on hold — all invoices passed their checks</div>';
+      <div><div class="t">${esc(r.supplier)} · ${esc(r.invoice_no)}</div><div class="s">Why it stopped: ${esc(r.check_result || 'a check failed')}</div></div>
+      <div class="a num">${sar(r.amount)}<small>SAR</small></div></div>`).join('')
+    : '<div class="empty">Nothing needs a person right now. All invoices passed their checks.</div>';
 
-  /* chips */
+  /* --- register --- */
   const chipNames = ['All', ...statuses];
-  $('chips').innerHTML = chipNames.map(s => `<button class="chip" type="button" data-s="${esc(s)}" aria-pressed="${s===FILTER}">${s==='All'?'':icon(s)}${esc(s)} <span class="num">${s==='All'?ALL.length:by(s).length}</span></button>`).join('')
+  $('chips').innerHTML = chipNames.map(s => `<button class="chip" type="button" data-s="${esc(s)}" aria-pressed="${s===FILTER}">${s==='All'?'':icon(s)}${esc(s==='All'?'All':sInfo(s).label)} <span class="num">${s==='All'?ALL.length:by(s).length}</span></button>`).join('')
     + `<input class="search" id="q" type="search" placeholder="Search invoice or supplier…" value="${esc(QUERY)}" aria-label="Search">`;
   $('chips').querySelectorAll('.chip').forEach(b => b.onclick = () => { FILTER = b.dataset.s; render(ALL); });
   $('q').oninput = e => { QUERY = e.target.value; drawRows(); };
@@ -432,19 +568,13 @@ function render(rows){
 
 function drawRows(){
   const q = QUERY.trim().toLowerCase();
-  const list = ALL.filter(r => (FILTER==='All' || r.status===FILTER) &&
-    (!q || (r.invoice_no+' '+r.supplier).toLowerCase().includes(q)));
-  const flag = (label, v, bad) => !v ? `<span class="flag">${label} –</span>` :
-    `<span class="flag ${up(v)===bad?'bad':'ok'}">${label} ${up(v)===bad?'✕':'✓'}</span>`;
+  const list = ALL.filter(r => (FILTER==='All' || r.status===FILTER) && (!q || (r.invoice_no+' '+r.supplier).toLowerCase().includes(q)));
+  const flag = (label, v, bad) => !v ? `<span class="flag">${label} –</span>` : `<span class="flag ${up(v)===bad?'bad':'ok'}">${label} ${up(v)===bad?'✕':'✓'}</span>`;
   $('rows').innerHTML = list.map(r => `<tr>
-    <td class="num">${esc(r.invoice_no)}</td>
-    <td>${esc(r.supplier)}</td>
-    <td class="num">${esc(r.po_number||'—')}</td>
-    <td class="r num">${sar(r.net_amount)}</td>
-    <td class="r num">${sar(r.vat)}</td>
-    <td class="r num"><b>${sar(r.amount)}</b></td>
+    <td class="num">${esc(r.invoice_no)}</td><td>${esc(r.supplier)}</td><td class="num">${esc(r.po_number||'—')}</td>
+    <td class="r num">${sar(r.net_amount)}</td><td class="r num">${sar(r.vat)}</td><td class="r num"><b>${sar(r.amount)}</b></td>
     <td><div class="flags">${flag('VAT',r.vat_check,'FAIL')}${flag('DUP',r.duplicate_check,'DUPLICATE')}${flag('QR',r.qr_check,'MISSING')}${flag('PO',r.po_check,'MISSING')}</div></td>
-    <td><span class="pill">${icon(r.status)}${esc(r.status||'—')}</span></td>
+    <td><span class="pill">${icon(r.status)}${esc(sInfo(r.status).label)}</span></td>
     <td>${esc(r.approver||'—')}</td>
     <td>${r.payment_status ? esc(r.payment_status)+' · <span class="num">'+esc(r.scheduled_pay_date||'')+'</span>' : '—'}</td>
   </tr>`).join('') || `<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:24px">No invoices match</td></tr>`;
@@ -456,27 +586,26 @@ document.addEventListener('mousemove', e => {
   const t = e.target.closest('[data-tip]');
   if (!t){ tip.classList.remove('on'); return; }
   tip.innerHTML = t.dataset.tip;
-  const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
-  const y = Math.min(e.clientY + 14, window.innerHeight - tip.offsetHeight - 8);
-  tip.style.left = x+'px'; tip.style.top = y+'px'; tip.classList.add('on');
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + 'px';
+  tip.style.top = Math.min(e.clientY + 14, innerHeight - tip.offsetHeight - 8) + 'px';
+  tip.classList.add('on');
 });
 
-/* theme toggle */
+/* theme */
 $('themeBtn').onclick = () => {
-  const cur = document.documentElement.dataset.theme ||
-    (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   document.documentElement.dataset.theme = cur === 'dark' ? 'light' : 'dark';
 };
 
-/* boot */
+/* boot + auto refresh every minute */
+function stamp(live, failed){
+  $('source').innerHTML = live ? '<span class="dot" style="background:var(--good)"></span>Live data'
+    : `<span class="dot" style="background:var(--neutral)"></span>${failed ? 'Offline snapshot' : 'Demo snapshot'}`;
+  $('updated').textContent = (live ? 'Live from Google Sheets · updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) + ' · refreshes every minute' : 'Showing a saved snapshot') + ' · demo data only, no real company data';
+}
 (async function(){
-  const {rows, live, failed} = await loadData();
-  $('source').innerHTML = live
-    ? '<span class="dot" style="background:var(--good)"></span>Live · Google Sheets'
-    : `<span class="dot" style="background:var(--neutral)"></span>${failed ? 'Snapshot (live load failed)' : 'Snapshot · '+SNAPSHOT_DATE}`;
-  $('updated').textContent = live ? 'Updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}) : 'Demo data';
-  render(rows);
-  if (live) setInterval(async () => { const d = await loadData(); if (d.live){ render(d.rows); $('updated').textContent = 'Updated ' + new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); } }, 60000);
+  const d = await loadData(); stamp(d.live, d.failed); render(d.rows);
+  if (d.live) setInterval(async () => { const n = await loadData(); if (n.live){ render(n.rows); stamp(true); } }, 60000);
 })();
 </script>
 </body>
