@@ -89,7 +89,7 @@ button.theme{cursor:pointer;font:inherit;font-size:12px;font-weight:600}
 .bar-row{display:grid;grid-template-columns:150px 1fr 120px;gap:12px;align-items:center;cursor:default}
 .bar-row .name{font-size:13px;color:var(--text-secondary);display:flex;align-items:center;gap:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .track{height:22px;position:relative;border-left:1px solid var(--grid)}
-.fill{position:absolute;left:0;top:3px;bottom:3px;border-radius:0 4px 4px 0;min-width:3px;transition:width .5s ease}
+.fill{position:absolute;left:0;top:3px;bottom:3px;border-radius:0 4px 4px 0;transition:width .5s ease}
 .bar-row .val{font-size:13px;text-align:right;color:var(--text-primary)}
 .bar-row .val span{color:var(--text-muted);font-size:12px}
 .bar-row:hover .fill{filter:brightness(1.08)}
@@ -223,9 +223,9 @@ footer{margin-top:22px;font-size:12px;color:var(--text-muted);display:flex;flex-
     <span>Demo data only · fictional suppliers · no real company data</span>
     <span>Stack: n8n · Google Gemini · Gmail API · Google Sheets API · Webhooks</span>
   </footer>
-</div>
-</div>
 <div id="tip" role="tooltip"></div>
+</div>
+</div>
 
 <script>
 /* ============================ CONFIG ============================ */
@@ -283,13 +283,41 @@ function parseCSV(text){
   return rows.filter(r => r.some(x => x.trim())).map(r => Object.fromEntries(head.map((h,i)=>[h, (r[i]??'').trim()])));
 }
 
+/* Reads the sheet with Google's JSONP endpoint (script tag) — works from any site, even file:// */
+function loadSheetJSONP(){
+  return new Promise((resolve, reject) => {
+    const cb = 'gviz_cb_' + Date.now();
+    const s = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 12000);
+    function cleanup(){ clearTimeout(timer); delete window[cb]; s.remove(); }
+    window[cb] = resp => {
+      cleanup();
+      try{
+        if (resp.status === 'error') throw new Error(JSON.stringify(resp.errors));
+        const cols = resp.table.cols.map(c => (c.label || '').trim());
+        const rows = resp.table.rows.map(r => {
+          const o = {};
+          cols.forEach((h, i) => {
+            const cell = r.c[i];
+            if (!h) return;
+            if (!cell || cell.v === null || cell.v === undefined) { o[h] = ''; return; }
+            o[h] = typeof cell.v === 'number' ? cell.v : (cell.f ?? String(cell.v));
+          });
+          return o;
+        });
+        resolve(rows);
+      }catch(e){ reject(e); }
+    };
+    s.src = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?headers=1&sheet=${encodeURIComponent(CONFIG.SHEET_NAME)}&tqx=responseHandler:${cb}&t=${Date.now()}`;
+    s.onerror = () => { cleanup(); reject(new Error('script load failed')); };
+    document.head.appendChild(s);
+  });
+}
+
 async function loadData(){
   if (!CONFIG.SHEET_ID) return {rows:SNAPSHOT, live:false};
   try{
-    const url = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(CONFIG.SHEET_NAME)}`;
-    const res = await fetch(url, {cache:'no-store'});
-    if (!res.ok) throw new Error(res.status);
-    const rows = parseCSV(await res.text()).filter(r => r.invoice_no);
+    const rows = (await loadSheetJSONP()).filter(r => String(r.invoice_no || '').trim());
     return {rows, live:true};
   }catch(e){
     console.warn('Live load failed, showing snapshot', e);
