@@ -124,5 +124,7 @@ I tested the system with demo invoices built to pass or fail specific controls:
 
 ## Author
 
-**Shahwaiz**, Finance Executive in Riyadh, Saudi Arabia, building AI and business automation solutions.
-GitHub: [@shahwaiz000](https://github.com/shahwaiz000)
+**Shahwaiz Sulehri**, Finance Executive in Riyadh, Saudi Arabia, building AI and business automation solutions.
+
+- LinkedIn: [linkedin.com/in/shahwaiz-sulehri-360baa302](https://www.linkedin.com/in/shahwaiz-sulehri-360baa302)
+- GitHub: [@shahwaiz000](https://github.com/shahwaiz000)
